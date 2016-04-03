@@ -10,34 +10,72 @@
 #include <strings.h>
 #include <dirent.h>
 
-int simpleList(char* filename, bool oneFile);
-void printError(char* filename);
-int notDotFile(const struct dirent * dent);
-int fComp(const struct dirent ** dentA,
-        const struct dirent ** dentB);
+typedef struct {
+    bool l, n, i, S;
+} FlagInfo;
+
+int setFlagInfo(FlagInfo* f, char c);
+int simpleList(char* filename, bool oneFile, FlagInfo* flagInfo);
+void printFileError(char* filename);
+int notDotFile(const struct dirent* dent);
+int ascComp(const struct dirent** dentA,
+        const struct dirent** dentB);
+int descComp(const struct dirent** dentA,
+        const struct dirent** dentB);
 
 int main(int argc, char *argv[]) {
-    // If there was no argument supplied, treat the command
-    // as though '.' was the argument.
-    if (argc == 1)
-        simpleList(".", true);
-    // Otherwise call simpleList() on all of the arguments.
+    // Counts and handles the number of arguments representing
+    // flags
+    int flagCount = 0;
+    FlagInfo flagInfo = {false, false, false, false};
+    if (argc > 1) {
+        // Keep handling flags as long as we still have arguments
+        // and the next argument begins '-'
+        while (flagCount <= argc - 2 &&
+                argv[flagCount + 1][0] == '-') {
+
+            char flag = argv[flagCount + 1][1];
+printf("%c\n", flag);
+            // Attempts to set the flag info struct to reflect the
+            // current flag. If the flag is not regognised, -1 is
+            // returned and we exit with an error.
+            if (setFlagInfo(&flagInfo, flag) == -1) {
+                fprintf(stderr,
+                        "ls-stage2: invalid option -- '%c'\n",
+                        flag);
+                return -1;
+            }
+
+            flagCount++;
+        }
+    }
+
+    int fileCount = argc - 1 - flagCount;
+    // If there was no file supplied, treat the command
+    // as though '.' was the file.
+    if (fileCount == 0)
+        simpleList(".", true, &flagInfo);
+    // Otherwise call simpleList() on all of the files.
     else {
         // Determine if we're only printing one file
-        bool oneFile = argc == 2;
-        for (int i = 1; i < argc; i++)
-            simpleList(argv[i], oneFile);
+        bool oneFile = fileCount == 1;
+        for (int i = 1 + flagCount; i < argc; i++)
+            simpleList(argv[i], oneFile, &flagInfo);
     }
+    return 0;
 }
 
 // Outputs a listing of the given directory
-int simpleList(char* filename, bool oneFile) {
-    // Gets a struct containing all the information about the given
+int simpleList(char* filename, bool oneFile, FlagInfo* flagInfo) {
+
+printf("%d %d %d %d\n", flagInfo->l, flagInfo->n, flagInfo->i, flagInfo->S);
+
+// Gets a struct containing all the information about the given
     // file. 
     struct stat st;
     if(stat(filename, &st)) {
         // If the file can't be found, print out a suitable error
-        printError(filename);
+        printFileError(filename);
         return -1;
     }
 
@@ -52,16 +90,23 @@ int simpleList(char* filename, bool oneFile) {
         if (!oneFile)
             printf("\n%s:\n", filename);
 
+        // Sets our ordering function depending on the ordering flag
+        int (* ord )(const struct dirent**, const struct dirent**);
+        if (flagInfo->S)
+            ord = &ascComp;
+        else
+            ord = &descComp;
+
         // Attempts to open the directory, sorting the contents
-        // in alphabetical (case-insensitive) order, ignoring
+        // in the specified order, ignoring
         // those that begin with a dot.
         struct dirent **namelist;
         int noOfFiles = scandir(filename,
-                &namelist, &notDotFile, &fComp);
+                &namelist, &notDotFile, ord);
         
         if (noOfFiles == -1) {
             // If scandir fails, print an error
-            printError(filename);
+            printFileError(filename);
             return -1;
         } else {
             // Print the files in the directory
@@ -77,7 +122,31 @@ int simpleList(char* filename, bool oneFile) {
     return 0;
 }
 
-void printError(char* filename) {
+int setFlagInfo(FlagInfo* f, char c) {
+    switch (c) {
+        case 'l' :
+            f->l = true;
+            break;
+        
+        case 'n' :
+            f->n = true;
+            break;
+
+        case 'i' :
+            f->i = true;
+            break;
+
+        case 'S' :
+            f->S = true;
+            break;
+
+        default :
+            return -1;
+    }
+    return 0;
+}
+
+void printFileError(char* filename) {
     char errorMsg[300];
     strcpy(errorMsg, "ls-stage1: cannot access ");
     strcat(errorMsg, filename);
@@ -88,7 +157,12 @@ int notDotFile(const struct dirent * dent) {
     return dent->d_name[0] != '.';
 }
 
-int fComp(const struct dirent ** dentA,
+int ascComp(const struct dirent ** dentA,
         const struct dirent ** dentB) {
     return strcasecmp((*dentA)->d_name, (*dentB)->d_name);
+}
+
+int descComp(const struct dirent ** dentA,
+        const struct dirent ** dentB) {
+    return strcasecmp((*dentB)->d_name, (*dentA)->d_name);
 }
