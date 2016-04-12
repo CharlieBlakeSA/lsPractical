@@ -9,7 +9,7 @@
 #include <stdbool.h>
 #include <fcntl.h>  // opendir
 
-int simpleList(char* filename, bool oneFile, Flags* flagStruct);
+int simpleList(char* filename, int parentDirfd, bool oneFile, Flags* flagStruct);
 void printFileListing(char* filename, struct stat* st, Flags* f);
 void printFileError(char* filename);
 
@@ -22,11 +22,24 @@ int main(int argc, char *argv[]) {
     int flagCount = getFlagsFromArgs(argc, argv, &flagStruct);
     if (flagCount < 0) return 1; // Exit message printed by above function
 
+    // Gets the file descriptor for the current directory (must be
+    // passed to simpleList)
+    DIR* cdStream = opendir(".");
+    if (cdStream == NULL) {
+        printFileError(".");
+        return -1;
+    }
+    int cdFd = dirfd(cdStream);
+    if (cdFd < 0) {
+        printFileError(".");
+        return -1;
+    }
+
     // If there was no file supplied, treat the command
     // as though '.' was the file.
     int fileCount = argc - 1 - flagCount;
     if (fileCount == 0)
-        simpleList(".", true, &flagStruct);
+        simpleList(".", cdFd, true, &flagStruct);
     
     // Otherwise call simpleList() on all of the files.
     else {
@@ -34,13 +47,14 @@ int main(int argc, char *argv[]) {
 
         // For each file supplied, list that file / its contents
         for (int i = 1 + flagCount; i < argc; i++)
-            simpleList(argv[i], oneFile, &flagStruct);
+            simpleList(argv[i], cdFd, oneFile, &flagStruct);
     }
     return 0;
 }
 
 // Outputs a listing of the given directory
-int simpleList(char* filename, bool oneFile, Flags* flagStruct) {
+int simpleList(char* filename, int parentDirfd, bool oneFile,
+    Flags* flagStruct) {
 
     // Gets a struct containing all the information about the given
     // file. NOTE: with lstat() if path is a symbolic link, then the
@@ -60,34 +74,31 @@ int simpleList(char* filename, bool oneFile, Flags* flagStruct) {
     // If "filename" is a directory, then print the filename,
     // followed by a list of its directory contents.
     else {
-        // Sets our directory ordering function depending on the ordering flag
+        // Sets our directory ordering function
+        // depending on the ordering flag
         int (* ord )(const struct dirent**, const struct dirent**);
         if (flagStruct->r)
             ord = &descComp;
         else
             ord = &ascComp;
 
-        // Attempts to open the directory, sorting the contents
-        // in the specified order, ignoring
+        // Attempts to open the directory returning dirent objects
+        // for its subfiles into subFileDirents, sorting the
+        // contents in the specified order, ignoring
         // those that begin with a dot.
-        struct dirent **subFileNames;
-        int subFileCount = scandir(filename,
-                &subFileNames, &notDotFile, ord);
-        
+        struct dirent **subFileDirents;
+        int subFileCount = scandirat(parentDirfd, filename,
+                &subFileDirents, &notDotFile, ord);
+
         if (subFileCount < 0) {
             // If scandir fails, print an error
             printFileError(filename);
             return -1;
         }
-        
-        // Unless this is a one file "ls-stage" command, print
-        // the filename above the directory
-        if (!oneFile)
-            printf("\n%s:\n", filename);
 
         // Gets a pointer to the directory stream and then gets
         // the file descriptor associated with that stream
-        // (needed for fstatat())
+        // (needed for fstatat() below)
         DIR* dir = opendir(filename);
         if (dir == NULL) {
             printFileError(filename);
@@ -98,27 +109,44 @@ int simpleList(char* filename, bool oneFile, Flags* flagStruct) {
             printFileError(filename);
             return -1;
         }
-
-        // Iterates through the directory's subfiles, gathers
-        // information, and calls a function to print that info
+        
+        // Creates an array of the stat structs for each subfile
+        struct stat subFileStats[subFileCount];
         for (int i = 0; i < subFileCount; i++) {
-            char* subFileName = subFileNames[i]->d_name;
-
+            char* subFileName = subFileDirents[i]->d_name;
             struct stat subSt;
-            // fstatat() lets us use the directory stream pointer as a
-            // relative path for the subfile name, then works exactly
-            // the same as stat(). The argument at the end of the function
-            // gives us the symbolic link handling of lstat().
+            // fstatat() lets us use the directory stream pointer
+            // as a relative path for the subfile name, then works
+            // exactly the same as stat(). The argument at the
+            // end of the function gives us the symbolic link
+            // handling of lstat().
             if (fstatat(fd, subFileName, &subSt, AT_SYMLINK_NOFOLLOW)) {
                 printFileError(subFileName);
                 return -1;
             }
-            
-            // Tab indent subfiles (unless this is a "one file" listing)
+            subFileStats[i] = subSt;
+        }
+
+        // If the sort-by-size flag is set, calls a function to sort
+        // our array of stat objects
+        if (flagStruct->S)
+            sortBySize(subFileStats, subFileCount);
+
+        // Unless this is a one file "ls-stage" command, print
+        // the filename above the directory
+        if (!oneFile)
+            printf("\n%s:\n", filename);
+
+        // Iterates through the array of subfile stats, calling a
+        // function to print the relevant info
+        for (int i = 0; i < subFileCount; i++) {
+            // Tab indent subfiles (unless this is a
+            // "one file" listing)
             if (!oneFile)
                 printf("\t");
 
-            printFileListing(subFileName, &subSt, flagStruct);
+            printFileListing(subFileDirents[i]->d_name,
+                    &subFileStats[i], flagStruct);
         }
     }
     return 0;

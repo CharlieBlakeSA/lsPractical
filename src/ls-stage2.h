@@ -7,7 +7,7 @@
 #include <sys/stat.h>   // stat
 
 typedef struct {
-    bool l, n, i, r;
+    bool l, n, i, r, S;
 } Flags;
 
 int getFlagsFromArgs(int argc, char* argv[], Flags* flagStruct);
@@ -17,6 +17,7 @@ int ascComp(const struct dirent** dentA,
         const struct dirent** dentB);
 int descComp(const struct dirent** dentA,
         const struct dirent** dentB);
+void sortBySize(struct stat* st, int fileCount);
 
 void getPermissions (mode_t st_mode, char* s);
 void getIDs(char* user, char* group, struct stat* st, bool asNumber);

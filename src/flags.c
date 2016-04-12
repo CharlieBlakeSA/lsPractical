@@ -57,6 +57,10 @@ int setFlag(Flags* flagStruct, char flagChar) {
             flagStruct->r = true;
             break;
 
+        case 'S' :
+            flagStruct->S = true;
+            break;
+
         default :
             return -1;
     }
