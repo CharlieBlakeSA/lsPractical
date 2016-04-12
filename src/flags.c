@@ -43,7 +43,13 @@ int setFlag(Flags* flagStruct, char flagChar) {
     switch (flagChar) {
         case 'n' :
             flagStruct->n = true;
-            // No break here as -n turns on -l
+            flagStruct->l = true;
+            break;
+
+        case 'h' :
+            flagStruct->h = true;
+            flagStruct->l = true;
+            break;
 
         case 'l' :
             flagStruct->l = true;
@@ -59,6 +65,10 @@ int setFlag(Flags* flagStruct, char flagChar) {
 
         case 'S' :
             flagStruct->S = true;
+            break;
+
+        case 'a' :
+            flagStruct->a = true;
             break;
 
         default :

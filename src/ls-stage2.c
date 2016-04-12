@@ -76,11 +76,19 @@ int simpleList(char* filename, int parentDirfd, bool oneFile,
     else {
         // Sets our directory ordering function
         // depending on the ordering flag
-        int (* ord )(const struct dirent**, const struct dirent**);
+        int (*ord) (const struct dirent**, const struct dirent**);
         if (flagStruct->r)
             ord = &descComp;
         else
             ord = &ascComp;
+
+        // Sets our directory filtering function
+        // depending on the "all" flag
+        int (*filter) (const struct dirent*);
+        if (flagStruct->a)
+            filter = NULL;
+        else
+            filter = &notDotFile;
 
         // Attempts to open the directory returning dirent objects
         // for its subfiles into subFileDirents, sorting the
@@ -88,7 +96,7 @@ int simpleList(char* filename, int parentDirfd, bool oneFile,
         // those that begin with a dot.
         struct dirent **subFileDirents;
         int subFileCount = scandirat(parentDirfd, filename,
-                &subFileDirents, &notDotFile, ord);
+                &subFileDirents, filter, ord);
 
         if (subFileCount < 0) {
             // If scandir fails, print an error
@@ -156,30 +164,32 @@ int simpleList(char* filename, int parentDirfd, bool oneFile,
 void printFileListing(char* filename, struct stat* st, Flags* f) {
     // Print inode number if flag set
     if (f->i)
-        printf("%ld ", (long) st->st_ino);
+        printf("%ld\t ", (long) st->st_ino);
     
     // Print long listing if flag set
     if (f->l) {
         // Permissions
         char perms[11];
         getPermissions(st->st_mode, perms);
-        printf("%s\t", perms);
+        printf("%s\t ", perms);
         
         // Number of links
-        printf("%ld\t", (long) st->st_nlink);
+        printf("%ld\t ", (long) st->st_nlink);
 
         // Print user & group IDs depending on '-n' flag
         char user[50], group[50];
         getIDs(user, group, st, f->n);
-        printf("%s\t%s\t", user, group);
+        printf("%s\t %s\t ", user, group);
 
         // File size
-        printf("%ld\t", (long) st->st_size);
+        char size[50];
+        getFileSize(st->st_size, size, f->h);
+        printf("%s\t ", size);
 
         // Time of last modification
         char time[100];
         getTime(&st->st_mtime, time);
-        printf( "%s\t", time); 
+        printf( "%s\t ", time); 
     }
 
     printf("%s\n", filename);

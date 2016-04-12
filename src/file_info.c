@@ -1,5 +1,6 @@
 #include "ls-stage2.h"
 #include <stdio.h>
+#include <math.h>
 #include <pwd.h>    // getpwuid
 #include <grp.h>    // getgrgid
 #include <time.h>   // localtime, strftime
@@ -31,6 +32,24 @@ void getIDs(char* user, char* group, struct stat* st, bool asNumber) {
         sprintf(group, "%s ", groupname);
     }
     return;
+}
+
+void getFileSize(size_t st_size, char* s, bool humanReadable) {
+    long bytes = (long) st_size;
+    
+    if (humanReadable) {
+        if (bytes == 0)
+            sprintf(s, "0B");
+        
+        else {
+            const char * const suffixes[] = { "B", "KB", "MB", "GB", "TB" } ;
+            long l = floor(log(bytes) / log(1024));
+            double v = bytes / pow(1024, l);
+            sprintf(s, "%.1f%s", v, suffixes[l]);
+        }   
+    } else {
+        sprintf(s, "%ld", bytes);
+    }
 }
 
 void getTime(time_t* tt, char* r) {
