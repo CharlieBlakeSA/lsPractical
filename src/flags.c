@@ -70,6 +70,10 @@ int setFlag(Flags* flagStruct, char flagChar) {
         case 'a' :
             flagStruct->a = true;
             break;
+        
+        case 'R' :
+            flagStruct->R = true;
+            break;
 
         default :
             return -1;

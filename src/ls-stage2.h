@@ -7,7 +7,7 @@
 #include <sys/stat.h>   // stat
 
 typedef struct {
-    bool l, n, i, r, S, a, h;
+    bool l, n, i, r, S, a, h, R;
 } Flags;
 
 int getFlagsFromArgs(int argc, char* argv[], Flags* flagStruct);
@@ -23,5 +23,6 @@ void getPermissions (mode_t st_mode, char* s);
 void getIDs(char* user, char* group, struct stat* st, bool asNumber);
 void getFileSize(size_t st_size, char* s, bool humanReadable);
 void getTime(time_t* tt, char* r);
+char* combineFilenames(char* parent, char* child);
 
 #endif

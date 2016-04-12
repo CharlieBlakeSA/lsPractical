@@ -4,6 +4,8 @@
 #include <pwd.h>    // getpwuid
 #include <grp.h>    // getgrgid
 #include <time.h>   // localtime, strftime
+#include <string.h> // strcpy, strcat
+#include <stdlib.h> // malloc
 
 void getPermissions (mode_t st_mode, char* perms) {
     perms[0] = S_ISDIR(st_mode) ? 'd' : '-';
@@ -56,5 +58,3 @@ void getTime(time_t* tt, char* r) {
     struct tm * p = localtime(tt);
     strftime(r, 50, "%b %e %H:%M", p);
 }
-
-
